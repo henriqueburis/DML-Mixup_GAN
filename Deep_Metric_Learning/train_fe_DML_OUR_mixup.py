@@ -75,6 +75,7 @@ print('seed==>',seed)
 
 result_model = list()
 result_model.append("SEED::  "+str(seed)+ "\n")
+result_model.append("epochs::  "+str(args.max_epochs)+ "scale_mixup::  "+str(args.scale_mixup)+ "alpha::  "+str(args.alpha)+  "beta::  "+str(args.beta)+ "\n")
 result_model.append("============================= \n")
 
 """
