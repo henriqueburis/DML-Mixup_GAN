@@ -26,7 +26,7 @@ import scipy
 from copy import deepcopy
 from sklearn.manifold import TSNE
 
-#import auto_augment as ag
+import auto_augment as ag
 from utils import *
 
 
@@ -61,8 +61,6 @@ parser.add_argument("--input_size", default=256, type=int, help="input size img.
 parser.add_argument('--alpha', default=1, type=float,help='mixup interpolation coefficient (default: 1)')
 parser.add_argument('--scale_mixup', default=0.0001, type=float,help='scaling the mixup loss')
 parser.add_argument('--beta', default=1, type=float,help='scaling the gauss loss')
-#### TSNE GRAPH
-parser.add_argument('--tsne_print', default=True, type=bool,help='if true save tsne imagen')
 args = parser.parse_args()
 
 
@@ -72,11 +70,6 @@ writer = SummaryWriter(comment="-"+args.data_dir+"-"+str(args.max_epochs)+"ep-sc
 
 seed = str(args.max_epochs)+str(args.scale_mixup)+str(args.alpha)+str(args.beta)
 print('seed==>',seed) 
-
-result_model = list()
-result_model.append("SEED::  "+str(seed)+ "\n")
-result_model.append("epochs::  "+str(args.max_epochs)+ "scale_mixup::  "+str(args.scale_mixup)+ "alpha::  "+str(args.alpha)+  "beta::  "+str(args.beta)+ "\n")
-result_model.append("============================= \n")
 
 """
 Configuration
@@ -292,7 +285,7 @@ def test():
         correct = pred.eq(labels.view_as(pred)).sum().item()
         running_correct_ += correct/args.batch_size
 
-    acc = running_correct_/len(test_loader)
+    acc = running_correct_/len(unlabels_loader)
 
     print('####### ACC_Test_train =',acc)
     return acc
@@ -303,7 +296,6 @@ Training
 """
 print("Begin training...")
 acc_geral = -1
-best_epoch = -1
 for epoch in range(args.max_epochs):  # loop over the dataset multiple times
 
 	#Update stored kernel centres
@@ -321,8 +313,9 @@ for epoch in range(args.max_epochs):  # loop over the dataset multiple times
                     acc_ataual = test()
                     writer.add_scalar('ACC/test', acc_ataual, epoch)
                     if(acc_geral <= acc_ataual):
-                       best_epoch = epoch
+                       #print('-------------------------------------->',acc_ataual)
                        acc_geral = acc_ataual
+                       #best_state = model.state_dict()
                        save_model()
                     #test()
 
@@ -382,11 +375,27 @@ for epoch in range(args.max_epochs):  # loop over the dataset multiple times
 #Update centres final time when done
 print("Updating kernel centres (final time)...")
 centres = update_centres()
-
-result_model.append("============================= \n")
-result_model.append("Best ACC_Teste_train::  "+str(acc_geral)+ "  best_epoch::  "+str(best_epoch)+ "\n")
-
+#print("The best acc=====================",acc_geral)
+writer.add_scalar('ACC/acc_geral', acc_geral, 1)
 #save_model()
+
+
+"""
+#path = './train'
+if(args.num_classes == 10):
+  #path = './'+args.save_dir+'/cifar'+args.num_classes+''
+  path = './cifar'+str(args.num_classes)+''
+  #CreateDir(path)
+  label_names=['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
+  #for i in range(len(label_names)):
+  #  CreateDir(path+'/'+label_names[i]+'/')
+else:
+  path = './cifar'+str(args.num_classes)+''
+ # CreateDir(path)
+  label_names=['apple', 'aquarium_fish', 'baby', 'bear', 'beaver', 'bed', 'bee', 'beetle', 'bicycle', 'bottle', 'bowl', 'boy', 'bridge', 'bus', 'butterfly', 'camel', 'can', 'castle', 'caterpillar', 'cattle', 'chair', 'chimpanzee', 'clock', 'cloud', 'cockroach', 'couch', 'crab', 'crocodile', 'cup', 'dinosaur', 'dolphin', 'elephant', 'flatfish', 'forest', 'fox', 'girl', 'hamster', 'house', 'kangaroo', 'keyboard', 'lamp', 'lawn_mower', 'leopard', 'lion', 'lizard', 'lobster', 'man', 'maple_tree', 'motorcycle', 'mountain', 'mouse', 'mushroom', 'oak_tree', 'orange', 'orchid', 'otter', 'palm_tree', 'pear', 'pickup_truck', 'pine_tree', 'plain', 'plate', 'poppy', 'porcupine', 'possum', 'rabbit', 'raccoon', 'ray', 'road', 'rocket', 'rose', 'sea', 'seal', 'shark', 'shrew', 'skunk', 'skyscraper', 'snail', 'snake', 'spider', 'squirrel', 'streetcar', 'sunflower', 'sweet_pepper', 'table', 'tank', 'telephone', 'television', 'tiger', 'tractor', 'train', 'trout', 'tulip', 'turtle', 'wardrobe', 'whale', 'willow_tree', 'wolf', 'woman', 'worm']
+  #for i in range(len(label_names)):
+  #  CreateDir(path+'/'+label_names[i]+'/')
+"""
 
 def MCScore(log_prob):
   top2 = torch.topk(log_prob, k=2, dim=1).values[:,1]
@@ -437,10 +446,8 @@ print("#########################################################################
 print("########################################################################################")
 
 ############################ Load best state model ######################################
-model.load_state_dict(torch.load(args.save_dir + "/"+seed+"model.pt",map_location=device))
-kernel_classifier.load_state_dict(torch.load(args.save_dir + "/"+seed+"classifier.pt"))
-centres = torch.load(args.save_dir + "/"+seed+"centres.pt")
-print(centres)
+#model = best_state.eval()
+model.load_state_dict(torch.load('./results/neighbour=200/'+seed+'model.pt',map_location=device))
 model = model.eval()
 ########################################################################################
 
@@ -474,7 +481,7 @@ for i, data in enumerate(tqdm(train_loader), 0):
     correct = pred.eq(labels.view_as(pred)).sum().item()
     running_correct += correct/args.batch_size
 
-
+"""
 data_L = np.array(list_metric_labeld).astype(np.float)
 scaler.fit(data_L[:,0:3])
 new_data_L = scaler.transform(data_L[:,0:3]) # normaliza os rotulados 10%
@@ -483,19 +490,14 @@ LIMIAR = np.mean(new_data_L,axis=0) # limiares definidos pela média dos 10% rot
 STD = np.std(new_data_L, axis=0)
 print("LIMIAR XL",LIMIAR)
 print("STD XL",STD)
-
+"""
 
 print('####### AAC_Label = ',running_correct/len(train_loader))
-
-result_model.append("============================= \n")
-result_model.append("AAC_Label XL::  "+str(running_correct/len(train_loader))+ "\n")
-
 feature_l,img_l, label_l = unmount_batch(feature_t,img_t,labels_t)
 
-if(args.tsne_print == True):
-  view_tsne = TSNE(random_state=123).fit_transform(feature_l)
-  plt.scatter(view_tsne[:,0], view_tsne[:,1], c=label_l, alpha=0.2, cmap='Set1')
-  plt.savefig(args.data_dir+'-'+str(args.max_epochs)+'-ep-scale_mixup-'+str(args.scale_mixup)+'-alpha-'+str(args.alpha)+'-tsne-XL.png', dpi=120)
+view_tsne = TSNE(random_state=123).fit_transform(feature_l)
+plt.scatter(view_tsne[:,0], view_tsne[:,1], c=label_l, alpha=0.2, cmap='Set1')
+plt.savefig(args.data_dir+'-'+str(args.max_epochs)+'-ep-scale_mixup-'+str(args.scale_mixup)+'-alpha-'+str(args.alpha)+'-tsne-XL.png', dpi=120)
 
 
 #########90% Unlabeled ##############
@@ -504,9 +506,6 @@ print("#XU Unlabeled!")
 feature_u= []
 labels_u = []
 img_u = []
-
-list_metric_unlabeld = []
-new_unlabels_loader = []
 
 running_correct_ = 0
 for i, data in enumerate(tqdm(unlabels_loader), 0):
@@ -523,14 +522,6 @@ for i, data in enumerate(tqdm(unlabels_loader), 0):
     pred = log_prob.argmax(dim=1, keepdim=True)
     #writer.add_scalar('Unlabeled_Loss/log_prob',log_prob.mean().data.cpu().numpy(), i)
 
-    Mcscore_l = MCScore(log_prob).cpu().detach().numpy()
-    entropy_l =  HLoss(prob_real.cpu().detach().numpy())
-    prob_max_l = prob_real.max(1).values.cpu().detach().numpy()
-
-    for it in range(len(log_prob)):
-      list_metric_unlabeld.append([Mcscore_l[it],entropy_l[it],prob_max_l[it],labels[it].cpu().item(),pred[it].cpu().item()])
-      new_unlabels_loader.append([output[it].data.cpu().numpy(),inputs[it].data.cpu().numpy(),labels[it].cpu().item(),pred[it].cpu().item()])
-
     feature_u.append(output.data.cpu().numpy())
     labels_u.append(labels.data.cpu().numpy())
     img_u.append(inputs.data.cpu().numpy())
@@ -538,20 +529,14 @@ for i, data in enumerate(tqdm(unlabels_loader), 0):
     correct = pred.eq(labels.view_as(pred)).sum().item()
     running_correct_ += correct/args.batch_size
 
-data_U =np.array(list_metric_unlabeld).astype(np.float)
-new_data_U = scaler.transform(data_U[:,0:3]) # normaliza os rotulados 10%
-data_NU = np.array(new_unlabels_loader)
-
 print('####### ACC_pseudo_gaus_labels =',running_correct_/len(unlabels_loader))
 
-result_model.append("============================= \n")
-result_model.append("ACC_pseudo_gaus_labels XU::  "+str(running_correct_/len(unlabels_loader))+ "\n")
+feature_xu,img_xu, label_xu = unmount_batch(feature_u,img_u,labels_u)
 
-if(args.tsne_print == True):
-  feature_xu,img_xu, label_xu = unmount_batch(feature_u,img_u,labels_u)
-  view_tsne_xu = TSNE(random_state=123).fit_transform(feature_xu)
-  plt.scatter(view_tsne_xu[:,0], view_tsne_xu[:,1], c=label_xu, alpha=0.2, cmap='Set1')
-  plt.savefig(args.data_dir+'-'+str(args.max_epochs)+'-ep-scale_mixup-'+str(args.scale_mixup)+'-alpha-'+str(args.alpha)+'-tsne-XU.png', dpi=120)
+view_tsne_xu = TSNE(random_state=123).fit_transform(feature_xu)
+plt.scatter(view_tsne_xu[:,0], view_tsne_xu[:,1], c=label_xu, alpha=0.2, cmap='Set1')
+plt.savefig(args.data_dir+'-'+str(args.max_epochs)+'-ep-scale_mixup-'+str(args.scale_mixup)+'-alpha-'+str(args.alpha)+'-tsne-XU.png', dpi=120)
+
 
 ######### Test  ##############
 print("#Test 10k!")
@@ -582,126 +567,14 @@ for i, data in enumerate(tqdm(test_loader), 0):
     correct = pred.eq(labels.view_as(pred)).sum().item()
     running_correct_ += correct/args.batch_size
 
-print('####### ACC_Test =',running_correct_/len(test_loader))
+print('####### ACC_Test_pgl =',running_correct_/len(unlabels_loader))
 
-result_model.append("============================= \n")
-result_model.append("ACC_Test::  "+str(running_correct_/len(test_loader))+ "\n")
+feature_tt,img_tt, label_tt = unmount_batch(feature_test,img_test,labels_test)
 
-if(args.tsne_print == True):
-  feature_tt,img_tt, label_tt = unmount_batch(feature_test,img_test,labels_test)
-  view_tsne_u = TSNE(random_state=123).fit_transform(feature_tt)
-  plt.scatter(view_tsne_u[:,0], view_tsne_u[:,1], c=label_tt, alpha=0.2, cmap='Set1')
-  plt.savefig(args.data_dir+'-'+str(args.max_epochs)+'-ep-scale_mixup-'+str(args.scale_mixup)+'-alpha-'+str(args.alpha)+'-beta-'+str(args.beta)+'-tsne_Test.png', dpi=120)
-
-print("############################################################################################################################### ")
-
-print("\n######################################## DML(features,labelling) + RA (RE-labelling) ######################################## ")
-
-acertos_gausian = 0
-erros_gaussian = 0
-rejeitados = 0
-aceitados = 0
-correct_metric = 0
-erro_metric = 0
-num = 0
-
-for i, data in enumerate(tqdm(new_unlabels_loader), 0):
-  num += 1
-  if((new_data_U[i][0] < (LIMIAR[0] + STD[0])) and (new_data_U[i][1] > (LIMIAR[1] + STD[1])) and (new_data_U[i][2] < (LIMIAR[2] -  STD[2])) ):
-    rejeitados +=1 ## rejeitado pelo regra de limiar corretamente. ## nesta parte poder conter mais rotulos errado de que acertado pelo gausiano
-    featureU,imgU,true_label,labelU = data
-    #feature_,imgs_,label_,correct_,erro_ = pairwise_distances_(featureU,imgU,labelU,feature_l,img_l,label_l,true_label)
-    correct_,erro_ = pairwise_distances_(featureU,imgU,labelU,feature_l,img_l,label_l,true_label)
-
-    #save_image(torch.from_numpy(np.array(imgs_)), path+'/'+label_names[label_[0]]+'/img_xr_'+str(label_[0])+'_'+str(i)+'_R_'+str(num)+'.png',normalize=True)
-
-    correct_metric = correct_metric + correct_
-    erro_metric = erro_metric + erro_
-
-    if(true_label == labelU): # se o rotulo real é igual ao rotulo dado pela distancia
-      acertos_gausian += 1 ## rejeitado pela regra mas esta errado pois o pseudo lebel da gaus acertou 
-
-  else:
-    featureU_acept,imgsU_acept,true_label,labelU_acept = data
-    #save_image(torch.from_numpy(np.array(imgsU_acept)), path+'/'+label_names[labelU_acept]+'/img_xr_'+str(labelU_acept)+'_'+str(i)+'_A_'+str(num)+'.png',normalize=True)
-
-    aceitados += 1 ##aceito corretamente
-    if(true_label != labelU_acept):
-      erros_gaussian += 1 ## foi aceito mas esta errado
+view_tsne_u = TSNE(random_state=123).fit_transform(feature_tt)
+plt.scatter(view_tsne_u[:,0], view_tsne_u[:,1], c=label_tt, alpha=0.2, cmap='Set1')
+plt.savefig(args.data_dir+'-'+str(args.max_epochs)+'-ep-scale_mixup-'+str(args.scale_mixup)+'-alpha-'+str(args.alpha)+'-beta-'+str(args.beta)+'-tsne_Test.png', dpi=120)
 
 
-
-print("Aceitados  ; ",aceitados)
-print("Aceitados que o ML ACERTOU (TP) : ",(aceitados-erros_gaussian))
-print("Aceitados que o ML ERROU (FP) : ",erros_gaussian)
-
-print("\nRejeitados ; ",rejeitados)
-print("Rejeitados que RA ACERTOU (TN) :",correct_metric)
-print("Rejeitados que RA ERROU (FN) : ",erro_metric)
-
-print("ACC: ",( (aceitados-erros_gaussian) + correct_metric ) / new_data_U.shape[0])
-
-result_model.append("============================= \n")
-result_model.append("DML(features,labelling) + RA (RE-labelling) \n")
-result_model.append("ACC_Test::  "+str(((aceitados-erros_gaussian) + correct_metric ) / new_data_U.shape[0])+ "\n")
-
-print("\n######################################## DML(features,labelling) ######################################## ")
-
-acertos_gausian = 0
-erros_gaussian = 0
-rejeitados = 0
-aceitados = 0
-correct_metric = 0
-erro_metric = 0
-num = 0
-
-for i, data in enumerate(tqdm(new_unlabels_loader), 0):
-    num += 1
-    featureU_acept,imgsU_acept,true_label,labelU_acept = data
-    aceitados += 1 ##aceito corretamente
-    if(true_label != labelU_acept):
-      erros_gaussian += 1 ## foi aceito mas esta errado
-
-print("Aceitados  ; ",aceitados)
-print("Aceitados que o ML ACERTOU (TP) : ",(aceitados-erros_gaussian))
-print("Aceitados que o ML ERROU (FP) : ",erros_gaussian)
-print("ACC: ", (aceitados-erros_gaussian) / new_data_U.shape[0] )
-
-result_model.append("============================= \n")
-result_model.append("DML(features,labelling) \n")
-result_model.append("ACC_Test::  "+str((aceitados-erros_gaussian) / new_data_U.shape[0])+ "\n")
-
-
-print("\n######################################## DML(features) + RA (labelling) ######################################## ")
-
-acertos_gausian = 0
-erros_gaussian = 0
-rejeitados = 0
-aceitados = 0
-correct_metric = 0
-erro_metric = 0
-num = 0
-
-for i, data in enumerate(tqdm(new_unlabels_loader), 0):
-    num += 1
-    rejeitados +=1 ## rejeitado pelo regra de limiar corretamente. ## nesta parte poder conter mais rotulos errado de que acertado pelo gausiano
-    featureU,imgU,true_label,labelU = data
-    correct_,erro_ = pairwise_distances_(featureU,imgU,labelU,feature_l,img_l,label_l,true_label)
-    correct_metric = correct_metric + correct_
-    erro_metric = erro_metric + erro_
-
-print("\nRejeitados ; ",rejeitados)
-print("Rejeitados que RA ACERTOU (TN) :",correct_metric)
-print("Rejeitados que RA ERROU (FN) : ",erro_metric)
-
-print("ACC: ", correct_metric / new_data_U.shape[0])
-
-result_model.append("============================= \n")
-result_model.append("DML(features) + RA (labelling) \n")
-result_model.append("ACC_Test::  "+str(correct_metric / new_data_U.shape[0])+ "\n")
-
-arquivo = open(seed+".txt", "a")
-arquivo.writelines(result_model)
-arquivo.close()
 
 print("finished")
