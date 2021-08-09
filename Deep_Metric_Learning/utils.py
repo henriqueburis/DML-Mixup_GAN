@@ -104,7 +104,7 @@ def TopK(final_dist,label_l,true_labels, k):
   final_index = np.argmax(freq)
   return  final_index
 
-def pairwise_distances_(feature_u, img_u, label_u, feature_l, img_l, label_l, true_labels):
+def pairwise_distances_(feature_u, img_u, label_u, feature_l, img_l, label_l, true_labels,topk):
   labels = []
   correct = 0
   erro = 0
@@ -120,7 +120,7 @@ def pairwise_distances_(feature_u, img_u, label_u, feature_l, img_l, label_l, tr
 
   final_dist = (1+dist_matrix_scaler_1) * (1+dist_matrix_scaler_5) * (1+dist_matrix_scaler_4)
   
-  k = args.topk
+  k = topk
   final_index = TopK(final_dist,label_l, true_labels,k)
 
   if(true_labels == final_index): #label_l[final_index]):
