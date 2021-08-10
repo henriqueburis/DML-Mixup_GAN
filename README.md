@@ -17,7 +17,7 @@ python3 test_dml_mixup.py --max_epochs=200 --scale_mixup 0.1 --alpha 1 --beta 1 
 ```
 
 
-## Wide Resnet on the original CIFAR-10
+## Wide Resnet50 on the original CIFAR-10
 ```
 python train.py
 ```
@@ -26,7 +26,7 @@ and here are some sample outputs from my local run:
 
 ```
 
-## Wide Resnet on CIFAR-10 with Random Labels
+## Wide Resnet50 on CIFAR-10 with Mixup loss
 ```
 python trainxxxxxx with mixup loss
 ```
