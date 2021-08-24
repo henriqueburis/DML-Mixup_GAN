@@ -36,6 +36,7 @@ from utils import *
 #from sklearn.metrics import pairwise_distances
 #from scipy.spatial.distance.cdist import distance
 #from scipy.spatial import distance
+from sklearn.metrics import confusion_matrix
 from sklearn.preprocessing import MinMaxScaler
 scaler = MinMaxScaler()
 
@@ -231,9 +232,8 @@ print('####### AAC_Label = ',running_correct/len(train_loader))
 result_model.append("============================= \n")
 result_model.append("AAC_Label XL::  "+str(running_correct/len(train_loader))+ "\n")
 
-feature_l,pred_l, true_l = unmount_batch_v2(feature_t,pred_t,labels_t)
-
 if(args.tsne_graph == "True"):
+  feature_l,pred_l, true_l = unmount_batch_v2(feature_t,pred_t,labels_t)
   view_tsne = TSNE(random_state=123).fit_transform(feature_l)
   plt.scatter(view_tsne[:,0], view_tsne[:,1], c=pred_l, alpha=0.2, cmap='Set1')
   plt.title(seed+'-tsne-XL',
@@ -242,7 +242,16 @@ if(args.tsne_graph == "True"):
                     #'weight': 'bold',
                     'size': 8})
   plt.savefig(seed+'-tsne-XL.png', dpi=120)
- 
+
+
+y_true, y_pred = convert_label_(pred_t,labels_t,train_dataset.directories)
+confusion = confusion_matrix(y_true, y_pred, labels = train_dataset.directories)
+#confusion = confusion_matrix(true_l, pred_l)
+print(confusion)
+result_model.append("============================= \n")
+result_model.append("Confusion_matrix_XL:: \n  "+str(confusion)+ "\n")
+plot_confusion_matrix(cm = np.array(confusion),normalize = False, target_names = train_dataset.directories, title = seed+'-XL')
+
 
 #########90% Unlabeled ##############
 print("#XU Unlabeled!")
@@ -296,9 +305,8 @@ print('####### ACC_pseudo_gaus_labels =',running_correct_/len(unlabels_loader))
 result_model.append("============================= \n")
 result_model.append("ACC_pseudo_gaus_labels XU::  "+str(running_correct_/len(unlabels_loader))+ "\n")
 
-feature_xu,pred_xu,label_xu = unmount_batch_v2(feature_u,pred_u,labels_u)
-
 if(args.tsne_graph == "True"):
+  feature_xu,pred_xu,label_xu = unmount_batch_v2(feature_u,pred_u,labels_u)
   view_tsne_xu = TSNE(random_state=123).fit_transform(feature_xu)
   plt.scatter(view_tsne_xu[:,0], view_tsne_xu[:,1], c=pred_xu, alpha=0.2, cmap='Set1')
   plt.title(seed+'-tsne-XU',
@@ -307,6 +315,15 @@ if(args.tsne_graph == "True"):
                     #'weight': 'bold',
                     'size': 8})
   plt.savefig(seed+'-tsne-XU.png', dpi=120)
+
+
+y_true, y_pred = convert_label_(pred_u,labels_u,train_dataset.directories)
+confusion = confusion_matrix(y_true, y_pred, labels = train_dataset.directories)
+#confusion = confusion_matrix(true_l, pred_l)
+print(confusion)
+result_model.append("============================= \n")
+result_model.append("Confusion_matrix_XU:: \n  "+str(confusion)+ "\n")
+plot_confusion_matrix(cm = np.array(confusion),normalize = False, target_names = train_dataset.directories, title = seed+'-XU')
 
 
 ######### Test  ##############
@@ -345,9 +362,8 @@ print('####### ACC_Test_pgl =',running_correct_/len(test_loader))
 result_model.append("============================= \n")
 result_model.append("ACC_Test::  "+str(running_correct_/len(test_loader))+ "\n")
 
-feature_tt,pred_tt, label_tt = unmount_batch_v2(feature_test,pred_test,labels_test)
-
 if(args.tsne_graph == "True"):
+  feature_tt,pred_tt, label_tt = unmount_batch_v2(feature_test,pred_test,labels_test)
   view_tsne_u = TSNE(random_state=123).fit_transform(feature_tt)
   plt.scatter(view_tsne_u[:,0], view_tsne_u[:,1], c=label_tt, alpha=0.2, cmap='Set1')
   plt.title(seed+'-tsne_Test',
@@ -356,6 +372,15 @@ if(args.tsne_graph == "True"):
                     #'weight': 'bold',
                     'size': 8})
   plt.savefig(seed+'-tsne_Test.png', dpi=120)
+
+
+y_true, y_pred = convert_label_(pred_test,labels_test,train_dataset.directories)
+confusion = confusion_matrix(y_true, y_pred, labels = train_dataset.directories)
+#confusion = confusion_matrix(true_l, pred_l)
+print(confusion)
+result_model.append("============================= \n")
+result_model.append("Confusion_matrix_Test:: \n  "+str(confusion)+ "\n")
+plot_confusion_matrix(cm = np.array(confusion),normalize = False, target_names = train_dataset.directories, title = seed+'-Test')
 
 
 print("############################################################################################################################### ")
