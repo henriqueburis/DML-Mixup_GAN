@@ -57,6 +57,8 @@ parser.add_argument("--update_interval", default=5, type=int, help="Stored centr
 parser.add_argument("--max_epochs", default=50, type=int, help="Maximum training length (epochs).")
 parser.add_argument("--topk", default=20, type=int, help="top k.")
 parser.add_argument("--input_size", default=256, type=int, help="input size img.")
+
+parser.add_argument("--name", default=" ", required=True, type=str, help="Dataset file name extensions (e.g. cifar10, cifar100).")
 ####MIXUP
 parser.add_argument('--alpha', default=1, type=float,help='mixup interpolation coefficient (default: 1)')
 parser.add_argument('--scale_mixup', default=0.0001, type=float,help='scaling the mixup loss')
@@ -65,10 +67,10 @@ parser.add_argument('--beta', default=1, type=float,help='scaling the gauss loss
 parser.add_argument('--tsne_graph', default=True, type=str, help='if true save tsne imagen')
 args = parser.parse_args()
 
-writer = SummaryWriter(comment="-"+args.data_dir+"-"+str(args.max_epochs)+"ep-scale_mixup "+str(args.scale_mixup)+"-alpha"+str(args.alpha)+"-beta"+str(args.beta))
+seed =args.name+"-EP"+str(args.max_epochs)+"-SM"+str(args.scale_mixup)+"-A"+str(args.alpha)+"-B"+str(args.beta)
+print('seed==>',seed)
 
-seed = str(args.max_epochs)+str(args.scale_mixup)+str(args.alpha)+str(args.beta)
-print('seed==>',seed) 
+writer = SummaryWriter(comment="-"+seed)
 
 result_model = list()
 result_model.append("SEED::  "+str(seed)+ "\n")
@@ -138,8 +140,9 @@ Set up DataLoaders
 
 #Transformations/pre-processing operations
 train_transforms = transforms.Compose([
-        transforms.Resize(input_size),
-#        transforms.RandomCrop(input_size),
+        transforms.Resize((input_size,input_size)),
+#        transforms.RandomCrop(32, padding=4),
+#        transforms.RandomCrop((32,32)),
 #        ag.AutoAugment(),
 #        ag.Cutout(),
         transforms.RandomHorizontalFlip(),
@@ -147,8 +150,8 @@ train_transforms = transforms.Compose([
         transforms.Normalize(mean, std)])
 
 update_transforms = transforms.Compose([
-        transforms.Resize(input_size),
-        transforms.CenterCrop(input_size),
+        transforms.Resize((input_size,input_size)),
+#        transforms.CenterCrop((input_size,input_size)),
         transforms.ToTensor(),
         transforms.Normalize(mean, std)])
 
@@ -262,6 +265,18 @@ def mixup_data(x, y, alpha=1.0, use_cuda=True):
 def mixup_criterion(criterion, pred, y_a, y_b, lam):
     return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
 
+
+def adjust_learning_rate(optimizer, epoch):
+    """decrease the learning rate at 100 and 150 epoch"""
+    lr = args.learning_rate
+    if epoch >= 100:
+        lr /= 10
+    if epoch >= 150:
+        lr /= 10
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
+
+
 ############################################################################ FIM ##############################################################
 
 """
@@ -374,17 +389,22 @@ for epoch in range(args.max_epochs):  # loop over the dataset multiple times
 		running_loss = 0.0
 		running_correct = 0
 
-        #exp_lr_scheduler.step()
+	#exp_lr_scheduler.step()
+	adjust_learning_rate(optimiser, epoch)
+
+
+
 
 #Update centres final time when done
 print("Updating kernel centres (final time)...")
 centres = update_centres()
 
+print("Best ACC_Teste_train::  "+str(acc_geral)+ "  best_epoch::  "+str(best_epoch)+ "\n")
 result_model.append("============================= \n")
 result_model.append("Best ACC_Teste_train::  "+str(acc_geral)+ "  best_epoch::  "+str(best_epoch)+ "\n")
 
 #save_model()
-
+"""
 def MCScore(log_prob):
   top2 = torch.topk(log_prob, k=2, dim=1).values[:,1]
   top1 = torch.topk(log_prob, k=2, dim=1).values[:,0]
@@ -429,7 +449,7 @@ def pairwise_distances_(feature_u, img_u, label_u, feature_l, img_l, label_l, tr
     erro = erro + 1
 
   return correct,erro
-
+"""
 print("########################################################################################")
 print("########################################################################################")
 
@@ -440,46 +460,52 @@ centres = torch.load(args.save_dir + "/"+seed+"centres.pt")
 print(centres)
 model = model.eval()
 ########################################################################################
-
 #######10% labeled ##############
+
 print("#XL labeled")
 
 feature_t= []
 labels_t = []
-img_t = []
+pred_t = []
+#img_t = []
 running_correct = 0
-list_metric_labeld = []
+#list_metric_labeld = []
 for i, data in enumerate(tqdm(train_loader), 0):
     inputs, labels, indices = data
     inputs  = inputs.to(device)
     labels  = labels.to(device).view(-1)
     indices = indices.to(device)
     output = model(inputs)
+    dist_matrix = torch.cdist(output, centres)
+    neighbours_tr = torch.argsort(dist_matrix)[:,0:num_neighbours]
+    indices = np.arange(0,output.size(0))
     log_prob, prob_real = kernel_classifier( output , centres, centre_labels, neighbours_tr[indices, :] )
     pred = log_prob.argmax(dim=1, keepdim=True)
+ 
+    #Mcscore_l = MCScore(log_prob).cpu().detach().numpy()
+    #entropy_l =  HLoss(prob_real.cpu().detach().numpy())
+    #prob_max_l = prob_real.max(1).values.cpu().detach().numpy()
 
-    Mcscore_l = MCScore(log_prob).cpu().detach().numpy()
-    entropy_l =  HLoss(prob_real.cpu().detach().numpy())
-    prob_max_l = prob_real.max(1).values.cpu().detach().numpy()
-
-    for it in range(len(log_prob)):
-      list_metric_labeld.append([Mcscore_l[it],entropy_l[it],prob_max_l[it],labels[it].cpu().item(),pred[it].cpu().item()])
+    #for it in range(len(log_prob)):
+      #list_metric_labeld.append([Mcscore_l[it],entropy_l[it],prob_max_l[it],labels[it].cpu().item(),pred[it].cpu().item()])
 
     feature_t.append(output.data.cpu().numpy())
     labels_t.append(labels.data.cpu().numpy())
-    img_t.append(inputs.data.cpu().numpy())
+    pred_t.append(pred.data.cpu().numpy())
+    #img_t.append(inputs.data.cpu().numpy())
+    
     correct = pred.eq(labels.view_as(pred)).sum().item()
     running_correct += correct/args.batch_size
 
 
-data_L = np.array(list_metric_labeld).astype(np.float)
-scaler.fit(data_L[:,0:3])
-new_data_L = scaler.transform(data_L[:,0:3]) # normaliza os rotulados 10%
+#data_L = np.array(list_metric_labeld).astype(np.float)
+#scaler.fit(data_L[:,0:3])
+#new_data_L = scaler.transform(data_L[:,0:3]) # normaliza os rotulados 10%
 
-LIMIAR = np.mean(new_data_L,axis=0) # limiares definidos pela média dos 10% rotulados em cima da média das três métricas
-STD = np.std(new_data_L, axis=0)
-print("LIMIAR XL",LIMIAR)
-print("STD XL",STD)
+#LIMIAR = np.mean(new_data_L,axis=0) # limiares definidos pela média dos 10% rotulados em cima da média das três métricas
+#STD = np.std(new_data_L, axis=0)
+#print("LIMIAR XL",LIMIAR)
+#print("STD XL",STD)
 
 
 print('####### AAC_Label = ',running_correct/len(train_loader))
@@ -487,17 +513,17 @@ print('####### AAC_Label = ',running_correct/len(train_loader))
 result_model.append("============================= \n")
 result_model.append("AAC_Label XL::  "+str(running_correct/len(train_loader))+ "\n")
 
-feature_l,img_l, label_l = unmount_batch(feature_t,img_t,labels_t)
+feature_l,pred_l, true_l = unmount_batch_v2(feature_t,pred_t,labels_t)
 
 if(args.tsne_graph == "True"):
   view_tsne = TSNE(random_state=123).fit_transform(feature_l)
-  plt.scatter(view_tsne[:,0], view_tsne[:,1], c=label_l, alpha=0.2, cmap='Set1')
-  plt.title(args.data_dir+'-'+str(args.max_epochs)+'ep-scale_mixup:'+str(args.scale_mixup)+'-alpha:'+str(args.alpha)+'-beta:'+str(args.beta)+'_tsne-XL',
+  plt.scatter(view_tsne[:,0], view_tsne[:,1], c=pred_l, alpha=0.2, cmap='Set1')
+  plt.title(seed+'-tsne-XL',
           fontdict={'family': 'serif',
                     'color' : 'darkblue',
-                    'weight': 'bold',
+                    #'weight': 'bold',
                     'size': 8})
-  plt.savefig(args.data_dir+'-'+str(args.max_epochs)+'-ep-scale_mixup-'+str(args.scale_mixup)+'-alpha-'+str(args.alpha)+'-tsne-XL.png', dpi=120)
+  plt.savefig(seed+'-tsne-XL.png', dpi=120)
 
 
 #########90% Unlabeled ##############
@@ -505,10 +531,11 @@ print("#XU Unlabeled!")
 
 feature_u= []
 labels_u = []
-img_u = []
+pred_u = []
+#img_u = []
 
-list_metric_unlabeld = []
-new_unlabels_loader = []
+#list_metric_unlabeld = []
+#new_unlabels_loader = []
 
 running_correct_ = 0
 for i, data in enumerate(tqdm(unlabels_loader), 0):
@@ -525,47 +552,52 @@ for i, data in enumerate(tqdm(unlabels_loader), 0):
     pred = log_prob.argmax(dim=1, keepdim=True)
     #writer.add_scalar('Unlabeled_Loss/log_prob',log_prob.mean().data.cpu().numpy(), i)
 
-    Mcscore_l = MCScore(log_prob).cpu().detach().numpy()
-    entropy_l =  HLoss(prob_real.cpu().detach().numpy())
-    prob_max_l = prob_real.max(1).values.cpu().detach().numpy()
+    #Mcscore_u = MCScore(log_prob).cpu().detach().numpy()
+    #entropy_u =  HLoss(prob_real.cpu().detach().numpy())
+    #prob_max_u = prob_real.max(1).values.cpu().detach().numpy()
 
-    for it in range(len(log_prob)):
-      list_metric_unlabeld.append([Mcscore_l[it],entropy_l[it],prob_max_l[it],labels[it].cpu().item(),pred[it].cpu().item()])
-      new_unlabels_loader.append([output[it].data.cpu().numpy(),inputs[it].data.cpu().numpy(),labels[it].cpu().item(),pred[it].cpu().item()])
+    #for it in range(len(log_prob)):
+      #list_metric_unlabeld.append([Mcscore_u[it],entropy_u[it],prob_max_u[it],labels[it].cpu().item(),pred[it].cpu().item()])
+      #new_unlabels_loader.append([output[it].data.cpu().numpy(),inputs[it].data.cpu().numpy(),labels[it].cpu().item(),pred[it].cpu().item()])    
 
     feature_u.append(output.data.cpu().numpy())
     labels_u.append(labels.data.cpu().numpy())
-    img_u.append(inputs.data.cpu().numpy())
+    pred_u.append(pred.data.cpu().numpy())
+    #img_u.append(inputs.data.cpu().numpy())
+    
 
     correct = pred.eq(labels.view_as(pred)).sum().item()
     running_correct_ += correct/args.batch_size
 
-data_U =np.array(list_metric_unlabeld).astype(np.float)
-new_data_U = scaler.transform(data_U[:,0:3]) # normaliza os rotulados 10%
-data_NU = np.array(new_unlabels_loader)
+#data_U =np.array(list_metric_unlabeld).astype(np.float)
+#new_data_U = scaler.transform(data_U[:,0:3]) # normaliza os rotulados 10%
+#data_NU = np.array(new_unlabels_loader)
 
 print('####### ACC_pseudo_gaus_labels =',running_correct_/len(unlabels_loader))
 
 result_model.append("============================= \n")
 result_model.append("ACC_pseudo_gaus_labels XU::  "+str(running_correct_/len(unlabels_loader))+ "\n")
 
+feature_xu,pred_xu,label_xu = unmount_batch_v2(feature_u,pred_u,labels_u)
+
 if(args.tsne_graph == "True"):
-  feature_xu,img_xu, label_xu = unmount_batch(feature_u,img_u,labels_u)
   view_tsne_xu = TSNE(random_state=123).fit_transform(feature_xu)
-  plt.scatter(view_tsne_xu[:,0], view_tsne_xu[:,1], c=label_xu, alpha=0.2, cmap='Set1')
-  plt.title(args.data_dir+'-'+str(args.max_epochs)+'ep-scale_mixup:'+str(args.scale_mixup)+'-alpha:'+str(args.alpha)+'-beta:'+str(args.beta)+'_tsne-XU',
+  plt.scatter(view_tsne_xu[:,0], view_tsne_xu[:,1], c=pred_xu, alpha=0.2, cmap='Set1')
+  plt.title(seed+'-tsne-XU',
           fontdict={'family': 'serif',
                     'color' : 'darkblue',
-                    'weight': 'bold',
+                    #'weight': 'bold',
                     'size': 8})
-  plt.savefig(args.data_dir+'-'+str(args.max_epochs)+'-ep-scale_mixup-'+str(args.scale_mixup)+'-alpha-'+str(args.alpha)+'-tsne-XU.png', dpi=120)
+  plt.savefig(seed+'-tsne-XU.png', dpi=120)
+
 
 ######### Test  ##############
 print("#Test 10k!")
 
 feature_test= []
 labels_test = []
-img_test = []
+pred_test = []
+#img_test = []
 
 running_correct_ = 0
 for i, data in enumerate(tqdm(test_loader), 0):
@@ -584,29 +616,31 @@ for i, data in enumerate(tqdm(test_loader), 0):
 
     feature_test.append(output.data.cpu().numpy())
     labels_test.append(labels.data.cpu().numpy())
-    img_test.append(inputs.data.cpu().numpy())
+    pred_test.append(pred.data.cpu().numpy())
+    #img_test.append(inputs.data.cpu().numpy())
 
     correct = pred.eq(labels.view_as(pred)).sum().item()
     running_correct_ += correct/args.batch_size
 
-print('####### ACC_Test =',running_correct_/len(test_loader))
+print('####### ACC_Test_pgl =',running_correct_/len(test_loader))
 
 result_model.append("============================= \n")
 result_model.append("ACC_Test::  "+str(running_correct_/len(test_loader))+ "\n")
 
+feature_tt,pred_tt, label_tt = unmount_batch_v2(feature_test,pred_test,labels_test)
+
 if(args.tsne_graph == "True"):
-  feature_tt,img_tt, label_tt = unmount_batch(feature_test,img_test,labels_test)
   view_tsne_u = TSNE(random_state=123).fit_transform(feature_tt)
   plt.scatter(view_tsne_u[:,0], view_tsne_u[:,1], c=label_tt, alpha=0.2, cmap='Set1')
-  plt.title(args.data_dir+'-'+str(args.max_epochs)+'ep-scale_mixup:'+str(args.scale_mixup)+'-alpha:'+str(args.alpha)+'-beta:'+str(args.beta)+'_tsne_Test',
+  plt.title(seed+'-tsne_Test',
           fontdict={'family': 'serif',
                     'color' : 'darkblue',
-                    'weight': 'bold',
+                    #'weight': 'bold',
                     'size': 8})
-  plt.savefig(args.data_dir+'-'+str(args.max_epochs)+'-ep-scale_mixup-'+str(args.scale_mixup)+'-alpha-'+str(args.alpha)+'-beta-'+str(args.beta)+'-tsne_Test.png', dpi=120)
+  plt.savefig(seed+'-tsne_Test.png', dpi=120)
 
 print("############################################################################################################################### ")
-
+"""
 print("\n######################################## DML(features,labelling) + RA (RE-labelling) ######################################## ")
 
 acertos_gausian = 0
@@ -711,6 +745,8 @@ print("ACC: ", correct_metric / new_data_U.shape[0])
 result_model.append("============================= \n")
 result_model.append("DML(features) + RA (labelling) \n")
 result_model.append("ACC_Test::  "+str(correct_metric / new_data_U.shape[0])+ "\n")
+
+"""
 
 arquivo = open(seed+".txt", "a")
 arquivo.writelines(result_model)
