@@ -1,4 +1,4 @@
-# DML Mixup(Gaussiano) And GAN
+# DML Mixup(Gaussian) And GAN
 
 
 # Code organization
