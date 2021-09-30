@@ -1,4 +1,4 @@
-# Weekly-Learning_DML-Mixup_GAN
+# DML Mixup(Gaussiano) And GAN
 
 
 # Code organization
